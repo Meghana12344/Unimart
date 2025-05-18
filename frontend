@@ -1,0 +1,913 @@
+// Frontend code for Unimart iOS App (React Native)
+import React, { useState, useEffect, useRef } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
+import { 
+  View, Text, Image, TextInput, TouchableOpacity, 
+  FlatList, ScrollView, StyleSheet, Dimensions, 
+  SafeAreaView, Animated, Platform 
+} from 'react-native';
+import { 
+  Search, Home, PlusCircle, MessageCircle, 
+  ShoppingCart, User, Heart, ChevronDown, Filter 
+} from 'lucide-react';
+
+// Mock data for demonstration
+const UNIVERSITIES = [
+  "UC Santa Cruz", 
+  "UC Berkeley", 
+  "Stanford University", 
+  "San Jose State",
+  "UCLA",
+  "USC"
+];
+
+// Mock categories and subcategories
+const CATEGORIES = {
+  "Living": ["Bedroom", "Bathroom", "Kitchen", "Common Area", "Outdoor", "Other"],
+  "Education": ["Textbooks", "Technology", "School Supplies", "Study Materials", "Other"],
+  "Clothing": ["Tops", "Bottoms", "Shoes", "Accessories", "Outerwear", "Other"]
+};
+
+// Mock listings data
+const MOCK_LISTINGS = [
+  {
+    id: 1,
+    title: "Desk Lamp",
+    description: "Perfect condition, barely used desk lamp with adjustable neck",
+    price: 15,
+    category: "Living",
+    subCategory: "Bedroom",
+    keywords: ["light", "desk", "study", "lamp", "led"],
+    condition: "Like New",
+    university: "UC Santa Cruz",
+    type: "Sell",
+    imageUrl: "/api/placeholder/300/200",
+    postedBy: "Alex K.",
+    postedDate: "May 15, 2025",
+    saved: false
+  },
+  {
+    id: 2,
+    title: "Psychology Textbook",
+    description: "Intro to Psychology, 9th edition, some highlighting but great condition",
+    price: 45,
+    category: "Education",
+    subCategory: "Textbooks",
+    keywords: ["psychology", "textbook", "class", "intro", "book"],
+    condition: "Good",
+    university: "UC Santa Cruz",
+    type: "Sell",
+    imageUrl: "/api/placeholder/300/200",
+    postedBy: "Jamie T.",
+    postedDate: "May 13, 2025",
+    saved: true
+  },
+  {
+    id: 3,
+    title: "Futon Sofa",
+    description: "Convertible futon, black, perfect for dorm rooms or apartments",
+    price: 120,
+    category: "Living",
+    subCategory: "Common Area",
+    keywords: ["futon", "sofa", "furniture", "couch", "bed"],
+    condition: "Used",
+    university: "UC Santa Cruz",
+    type: "Sell",
+    imageUrl: "/api/placeholder/300/200",
+    postedBy: "Morgan L.",
+    postedDate: "May 10, 2025",
+    saved: false
+  },
+  {
+    id: 4,
+    title: "MacBook Charger",
+    description: "Compatible with 2018-2021 MacBook Pro models, works perfectly",
+    price: 35,
+    category: "Education",
+    subCategory: "Technology",
+    keywords: ["charger", "macbook", "apple", "laptop", "power"],
+    condition: "Good",
+    university: "UC Santa Cruz",
+    type: "Sell",
+    imageUrl: "/api/placeholder/300/200",
+    postedBy: "Taylor B.",
+    postedDate: "May 14, 2025",
+    saved: false
+  },
+  {
+    id: 5,
+    title: "Chemistry Lab Equipment",
+    description: "Available to borrow for the quarter, includes beakers, test tubes, and safety goggles",
+    price: 0,
+    category: "Education",
+    subCategory: "School Supplies",
+    keywords: ["chemistry", "lab", "science", "equipment", "beakers"],
+    condition: "Good",
+    university: "UC Santa Cruz",
+    type: "Lend",
+    imageUrl: "/api/placeholder/300/200",
+    postedBy: "Sam H.",
+    postedDate: "May 16, 2025",
+    saved: false
+  },
+  {
+    id: 6,
+    title: "Nike Hoodie - Medium",
+    description: "Black Nike hoodie, size M, worn only a few times",
+    price: 25,
+    category: "Clothing",
+    subCategory: "Tops",
+    keywords: ["hoodie", "nike", "black", "sweatshirt", "medium"],
+    condition: "Like New",
+    university: "UC Santa Cruz",
+    type: "Sell",
+    imageUrl: "/api/placeholder/300/200",
+    postedBy: "Jordan P.",
+    postedDate: "May 12, 2025",
+    saved: false
+  },
+  {
+    id: 7,
+    title: "Adidas Running Shoes",
+    description: "Women's size 8, barely used, great condition",
+    price: 40,
+    category: "Clothing",
+    subCategory: "Shoes",
+    keywords: ["shoes", "running", "adidas", "athletic", "sneakers"],
+    condition: "Like New",
+    university: "UC Santa Cruz",
+    type: "Sell",
+    imageUrl: "/api/placeholder/300/200",
+    postedBy: "Casey L.",
+    postedDate: "May 9, 2025",
+    saved: false
+  },
+  {
+    id: 8,
+    title: "Mini Fridge",
+    description: "3.2 cubic feet, works perfectly, moving out and don't need it",
+    price: 65,
+    category: "Living",
+    subCategory: "Kitchen",
+    keywords: ["fridge", "refrigerator", "kitchen", "appliance", "mini"],
+    condition: "Good",
+    university: "UC Santa Cruz",
+    type: "Sell",
+    imageUrl: "/api/placeholder/300/200",
+    postedBy: "Riley J.",
+    postedDate: "May 8, 2025",
+    saved: false
+  }
+];
+
+// Mock messages data
+const MOCK_MESSAGES = [
+  {
+    id: 1,
+    sender: "Alex K.",
+    lastMessage: "Is the desk lamp still available?",
+    timestamp: "10:23 AM",
+    avatar: "/api/placeholder/40/40",
+    unread: true
+  },
+  {
+    id: 2,
+    sender: "Jamie T.",
+    lastMessage: "Great! Let's meet tomorrow at 3pm near the library.",
+    timestamp: "Yesterday",
+    avatar: "/api/placeholder/40/40",
+    unread: false
+  },
+  {
+    id: 3,
+    sender: "Taylor B.",
+    lastMessage: "Would you take $30 for the textbook?",
+    timestamp: "May 14",
+    avatar: "/api/placeholder/40/40",
+    unread: true
+  }
+];
+
+// Mock cart items
+const MOCK_CART_ITEMS = [
+  {
+    id: 2,
+    title: "Psychology Textbook",
+    price: 45,
+    sellerName: "Jamie T.",
+    imageUrl: "/api/placeholder/100/100"
+  },
+  {
+    id: 6,
+    title: "Nike Hoodie - Medium",
+    price: 25,
+    sellerName: "Jordan P.",
+    imageUrl: "/api/placeholder/100/100"
+  }
+];
+
+// Create navigators
+const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator();
+
+// Login Screen
+function LoginScreen({ navigation }) {
+  const [selectedUniversity, setSelectedUniversity] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  
+  const handleUniversitySelect = (university) => {
+    setSelectedUniversity(university);
+    setDropdownOpen(false);
+  };
+  
+  const handleLogin = () => {
+    if (selectedUniversity) {
+      // In a real app, this would redirect to university SSO
+      // For demo, just navigate to main app
+      navigation.replace('MainApp');
+    }
+  };
+  
+  return (
+    <SafeAreaView style={styles.loginContainer}>
+      <View style={styles.logoContainer}>
+        <Text style={styles.logoText}>Unimart</Text>
+        <Text style={styles.logoSubtext}>Campus Marketplace</Text>
+      </View>
+      
+      <View style={styles.loginForm}>
+        <Text style={styles.loginHeader}>Sign in with your university</Text>
+        
+        <View style={styles.universityDropdown}>
+          <TouchableOpacity 
+            style={styles.dropdownButton}
+            onPress={() => setDropdownOpen(!dropdownOpen)}
+          >
+            <Text style={selectedUniversity ? styles.selectedText : styles.placeholderText}>
+              {selectedUniversity || "Select your university"}
+            </Text>
+            <ChevronDown size={20} color="#666" />
+          </TouchableOpacity>
+          
+          {dropdownOpen && (
+            <View style={styles.dropdownList}>
+              {UNIVERSITIES.map((uni) => (
+                <TouchableOpacity
+                  key={uni}
+                  style={styles.dropdownItem}
+                  onPress={() => handleUniversitySelect(uni)}
+                >
+                  <Text style={styles.dropdownItemText}>{uni}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+        
+        <TouchableOpacity 
+          style={[
+            styles.loginButton, 
+            !selectedUniversity && styles.loginButtonDisabled
+          ]}
+          onPress={handleLogin}
+          disabled={!selectedUniversity}
+        >
+          <Text style={styles.loginButtonText}>Continue to Sign In</Text>
+        </TouchableOpacity>
+        
+        <Text style={styles.loginInfo}>
+          You'll be redirected to your university's sign-in page.
+          Only students with valid university credentials can access Unimart.
+        </Text>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+// Explore Screen
+function ExploreScreen({ navigation }) {
+  const [activeCategory, setActiveCategory] = useState("Living");
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+  
+  useEffect(() => {
+    const updateLayout = () => {
+      setScreenWidth(Dimensions.get('window').width);
+    };
+    
+    Dimensions.addEventListener('change', updateLayout);
+    return () => {
+      // Clean up event listener
+      Dimensions.removeEventListener('change', updateLayout);
+    };
+  }, []);
+  
+  const filteredListings = MOCK_LISTINGS.filter(item => 
+    item.category === activeCategory
+  );
+  
+  const handleScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+    { useNativeDriver: false }
+  );
+  
+  const handleMomentumScrollEnd = (e) => {
+    const position = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
+    const categories = Object.keys(CATEGORIES);
+    setActiveCategory(categories[position]);
+  };
+  
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Unimart</Text>
+        <Text style={styles.headerSubtitle}>UC Santa Cruz</Text>
+      </View>
+      
+      {/* Category Tabs */}
+      <View style={styles.categoryTabs}>
+        {Object.keys(CATEGORIES).map((category, index) => (
+          <TouchableOpacity
+            key={category}
+            style={[
+              styles.categoryTab,
+              activeCategory === category && styles.activeCategoryTab
+            ]}
+            onPress={() => {
+              setActiveCategory(category);
+              // Scroll to the corresponding page
+              if (flatListRef.current) {
+                flatListRef.current.scrollToOffset({
+                  offset: index * screenWidth,
+                  animated: true
+                });
+              }
+            }}
+          >
+            <Text
+              style={[
+                styles.categoryTabText,
+                activeCategory === category && styles.activeCategoryTabText
+              ]}
+            >
+              {category}
+            </Text>
+            {activeCategory === category && (
+              <View style={styles.activeTabIndicator} />
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+      
+      {/* Horizontally Scrollable Categories */}
+      <Animated.FlatList
+        ref={flatListRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={handleScroll}
+        onMomentumScrollEnd={handleMomentumScrollEnd}
+        scrollEventThrottle={16}
+        data={Object.keys(CATEGORIES)}
+        keyExtractor={(item) => item}
+        renderItem={({ item }) => {
+          const categoryListings = MOCK_LISTINGS.filter(
+            listing => listing.category === item
+          );
+          
+          return (
+            <View style={[styles.categoryPage, { width: screenWidth }]}>
+              {/* Pinterest-like grid */}
+              <FlatList
+                data={categoryListings}
+                keyExtractor={(item) => item.id.toString()}
+                numColumns={2}
+                columnWrapperStyle={styles.columnWrapper}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.listingCard}
+                    onPress={() => navigation.navigate('ItemDetail', { item })}
+                  >
+                    <Image
+                      source={{ uri: item.imageUrl }}
+                      style={styles.listingImage}
+                    />
+                    {item.type === "Lend" && (
+                      <View style={styles.lendBadge}>
+                        <Text style={styles.lendBadgeText}>For Lending</Text>
+                      </View>
+                    )}
+                    <View style={styles.listingInfo}>
+                      <Text style={styles.listingTitle} numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      <Text style={styles.listingPrice}>
+                        {item.price > 0 ? `$${item.price}` : "Free"}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          );
+        }}
+      />
+    </SafeAreaView>
+  );
+}
+
+// Search Screen
+function SearchScreen({ navigation }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [activeFilters, setActiveFilters] = useState({
+    category: "All",
+    subCategory: "All"
+  });
+  const [showResults, setShowResults] = useState(false);
+  const [results, setResults] = useState([]);
+  
+  useEffect(() => {
+    if (searchQuery.length > 1) {
+      // Generate keyword suggestions based on mock data
+      const allKeywords = MOCK_LISTINGS.flatMap(item => item.keywords);
+      const filteredKeywords = [...new Set(allKeywords)].filter(keyword =>
+        keyword.toLowerCase().includes(searchQuery.toLowerCase())
+      ).slice(0, 5);
+      
+      setSuggestions(filteredKeywords);
+    } else {
+      setSuggestions([]);
+    }
+  }, [searchQuery]);
+  
+  const handleSearch = (query) => {
+    setSearchQuery(query);
+    setShowResults(true);
+    
+    // Filter listings by search query and active filters
+    const filteredResults = MOCK_LISTINGS.filter(item => {
+      const matchesSearch = 
+        item.title.toLowerCase().includes(query.toLowerCase()) ||
+        item.description.toLowerCase().includes(query.toLowerCase()) ||
+        item.keywords.some(keyword => 
+          keyword.toLowerCase().includes(query.toLowerCase())
+        );
+      
+      const matchesCategory = 
+        activeFilters.category === "All" || 
+        item.category === activeFilters.category;
+      
+      const matchesSubCategory = 
+        activeFilters.subCategory === "All" || 
+        item.subCategory === activeFilters.subCategory;
+      
+      return matchesSearch && matchesCategory && matchesSubCategory;
+    });
+    
+    setResults(filteredResults);
+  };
+  
+  const handleFilterChange = (filterType, value) => {
+    if (filterType === "category") {
+      setActiveFilters({
+        category: value,
+        subCategory: "All"
+      });
+    } else {
+      setActiveFilters({
+        ...activeFilters,
+        subCategory: value
+      });
+    }
+    
+    if (searchQuery) {
+      handleSearch(searchQuery);
+    }
+  };
+  
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.searchHeader}>
+        <View style={styles.searchInputContainer}>
+          <Search size={20} color="#666" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search for items..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+            onSubmitEditing={() => handleSearch(searchQuery)}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={() => {
+                setSearchQuery("");
+                setSuggestions([]);
+                setShowResults(false);
+              }}
+            >
+              <Text style={styles.clearButtonText}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        
+        <TouchableOpacity
+          style={styles.filterButton}
+          onPress={() => navigation.navigate('FilterModal', { 
+            activeFilters,
+            onFilterChange: handleFilterChange
+          })}
+        >
+          <Filter size={20} color="#666" />
+        </TouchableOpacity>
+      </View>
+      
+      {/* Filter pills */}
+      {(activeFilters.category !== "All" || activeFilters.subCategory !== "All") && (
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterPills}
+          contentContainerStyle={styles.filterPillsContent}
+        >
+          {activeFilters.category !== "All" && (
+            <View style={styles.filterPill}>
+              <Text style={styles.filterPillText}>{activeFilters.category}</Text>
+              <TouchableOpacity
+                onPress={() => handleFilterChange("category", "All")}
+              >
+                <Text style={styles.filterPillRemove}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          
+          {activeFilters.subCategory !== "All" && (
+            <View style={styles.filterPill}>
+              <Text style={styles.filterPillText}>{activeFilters.subCategory}</Text>
+              <TouchableOpacity
+                onPress={() => handleFilterChange("subCategory", "All")}
+              >
+                <Text style={styles.filterPillRemove}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </ScrollView>
+      )}
+      
+      {/* Keyword suggestions */}
+      {!showResults && suggestions.length > 0 && (
+        <View style={styles.suggestions}>
+          {suggestions.map((suggestion, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.suggestionItem}
+              onPress={() => handleSearch(suggestion)}
+            >
+              <Search size={16} color="#666" style={styles.suggestionIcon} />
+              <Text style={styles.suggestionText}>{suggestion}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+      
+      {/* Search results */}
+      {showResults && (
+        <View style={styles.resultsContainer}>
+          <Text style={styles.resultsHeader}>
+            {results.length} {results.length === 1 ? 'result' : 'results'}
+          </Text>
+          
+          <FlatList
+            data={results}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.resultItem}
+                onPress={() => navigation.navigate('ItemDetail', { item })}
+              >
+                <Image
+                  source={{ uri: item.imageUrl }}
+                  style={styles.resultImage}
+                />
+                <View style={styles.resultInfo}>
+                  <Text style={styles.resultTitle}>{item.title}</Text>
+                  <Text style={styles.resultPrice}>
+                    {item.price > 0 ? `$${item.price}` : "Free"}
+                  </Text>
+                  <Text style={styles.resultCategory}>
+                    {item.category} • {item.subCategory}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            ItemSeparatorComponent={() => <View style={styles.resultDivider} />}
+          />
+        </View>
+      )}
+      
+      {/* Empty states */}
+      {showResults && results.length === 0 && (
+        <View style={styles.emptyResults}>
+          <Search size={50} color="#ccc" />
+          <Text style={styles.emptyResultsTitle}>No items found</Text>
+          <Text style={styles.emptyResultsText}>
+            Try adjusting your search or filters
+          </Text>
+        </View>
+      )}
+      
+      {!showResults && suggestions.length === 0 && searchQuery.length === 0 && (
+        <View style={styles.searchPlaceholder}>
+          <Search size={50} color="#ccc" />
+          <Text style={styles.searchPlaceholderText}>
+            Search for items by name, description, or keywords
+          </Text>
+        </View>
+      )}
+    </SafeAreaView>
+  );
+}
+
+// Sell/Lend Screen
+function SellLendScreen() {
+  const [listingType, setListingType] = useState("sell");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [price, setPrice] = useState("");
+  const [category, setCategory] = useState("");
+  const [subCategory, setSubCategory] = useState("");
+  const [condition, setCondition] = useState("");
+  const [keywords, setKeywords] = useState("");
+  
+  const handleSubmit = () => {
+    // In a real app, this would send the data to the backend
+    alert("Listing created successfully!");
+    // Reset form
+    setTitle("");
+    setDescription("");
+    setPrice("");
+    setCategory("");
+    setSubCategory("");
+    setCondition("");
+    setKeywords("");
+  };
+  
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.sellLendContainer}>
+        <Text style={styles.sellLendTitle}>Create a New Listing</Text>
+        
+        {/* Listing Type Toggle */}
+        <View style={styles.listingTypeToggle}>
+          <TouchableOpacity
+            style={[
+              styles.listingTypeButton,
+              listingType === "sell" && styles.activeListingTypeButton
+            ]}
+            onPress={() => setListingType("sell")}
+          >
+            <Text 
+              style={[
+                styles.listingTypeText,
+                listingType === "sell" && styles.activeListingTypeText
+              ]}
+            >
+              Sell
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.listingTypeButton,
+              listingType === "lend" && styles.activeListingTypeButton
+            ]}
+            onPress={() => setListingType("lend")}
+          >
+            <Text 
+              style={[
+                styles.listingTypeText,
+                listingType === "lend" && styles.activeListingTypeText
+              ]}
+            >
+              Lend
+            </Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Image Upload */}
+        <View style={styles.imageUpload}>
+          <TouchableOpacity style={styles.uploadButton}>
+            <PlusCircle size={24} color="#666" />
+            <Text style={styles.uploadButtonText}>Add Photos</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Form Fields */}
+        <View style={styles.formField}>
+          <Text style={styles.formLabel}>Title</Text>
+          <TextInput
+            style={styles.formInput}
+            value={title}
+            onChangeText={setTitle}
+            placeholder="What are you listing?"
+          />
+        </View>
+        
+        <View style={styles.formField}>
+          <Text style={styles.formLabel}>Description</Text>
+          <TextInput
+            style={[styles.formInput, styles.textArea]}
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Describe your item in detail..."
+            multiline
+            numberOfLines={4}
+          />
+        </View>
+        
+        {listingType === "sell" && (
+          <View style={styles.formField}>
+            <Text style={styles.formLabel}>Price</Text>
+            <TextInput
+              style={styles.formInput}
+              value={price}
+              onChangeText={setPrice}
+              placeholder="$0.00"
+              keyboardType="numeric"
+            />
+          </View>
+        )}
+        
+        <View style={styles.formField}>
+          <Text style={styles.formLabel}>Category</Text>
+          <View style={styles.selectInput}>
+            <Picker
+              selectedValue={category}
+              onValueChange={(value) => {
+                setCategory(value);
+                setSubCategory("");
+              }}
+            >
+              <Picker.Item label="Select a category" value="" />
+              {Object.keys(CATEGORIES).map((cat) => (
+                <Picker.Item key={cat} label={cat} value={cat} />
+              ))}
+            </Picker>
+          </View>
+        </View>
+        
+        {category && (
+          <View style={styles.formField}>
+            <Text style={styles.formLabel}>Subcategory</Text>
+            <View style={styles.selectInput}>
+              <Picker
+                selectedValue={subCategory}
+                onValueChange={setSubCategory}
+              >
+                <Picker.Item label="Select a subcategory" value="" />
+                {CATEGORIES[category].map((subCat) => (
+                  <Picker.Item key={subCat} label={subCat} value={subCat} />
+                ))}
+              </Picker>
+            </View>
+          </View>
+        )}
+        
+        <View style={styles.formField}>
+          <Text style={styles.formLabel}>Condition</Text>
+          <View style={styles.selectInput}>
+            <Picker
+              selectedValue={condition}
+              onValueChange={setCondition}
+            >
+              <Picker.Item label="Select condition" value="" />
+              <Picker.Item label="New" value="New" />
+              <Picker.Item label="Like New" value="Like New" />
+              <Picker.Item label="Good" value="Good" />
+              <Picker.Item label="Fair" value="Fair" />
+              <Picker.Item label="Poor" value="Poor" />
+            </Picker>
+          </View>
+        </View>
+        
+        <View style={styles.formField}>
+          <Text style={styles.formLabel}>Keywords (comma separated)</Text>
+          <TextInput
+            style={styles.formInput}
+            value={keywords}
+            onChangeText={setKeywords}
+            placeholder="E.g., furniture, desk, wooden"
+          />
+        </View>
+        
+        <TouchableOpacity 
+          style={styles.submitButton}
+          onPress={handleSubmit}
+        >
+          <Text style={styles.submitButtonText}>
+            {listingType === "sell" ? "List Item for Sale" : "Offer Item for Lending"}
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// Inbox Screen (Messages)
+function InboxScreen({ navigation }) {
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.inboxHeader}>
+        <Text style={styles.inboxTitle}>Messages</Text>
+      </View>
+      
+      {MOCK_MESSAGES.length > 0 ? (
+        <FlatList
+          data={MOCK_MESSAGES}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <TouchableOpacity 
+              style={styles.messageItem}
+              onPress={() => navigation.navigate('ChatDetail', { contact: item })}
+            >
+              <Image
+                source={{ uri: item.avatar }}
+                style={styles.messageAvatar}
+              />
+              <View style={styles.messageContent}>
+                <View style={styles.messageHeader}>
+                  <Text style={styles.messageName}>{item.sender}</Text>
+                  <Text style={styles.messageTime}>{item.timestamp}</Text>
+                </View>
+                <Text 
+                  style={[
+                    styles.messageText,
+                    item.unread && styles.unreadMessage
+                  ]}
+                  numberOfLines={1}
+                >
+                  {item.lastMessage}
+                </Text>
+              </View>
+              {item.unread && <View style={styles.unreadIndicator} />}
+            </TouchableOpacity>
+          )}
+          ItemSeparatorComponent={() => <View style={styles.messageDivider} />}
+        />
+      ) : (
+        <View style={styles.emptyInbox}>
+          <MessageCircle size={50} color="#ccc" />
+          <Text style={styles.emptyInboxTitle}>No messages yet</Text>
+          <Text style={styles.emptyInboxText}>
+            When you connect with sellers or buyers, your conversations will appear here
+          </Text>
+        </View>
+      )}
+    </SafeAreaView>
+  );
+}
+
+// Cart Screen
+function CartScreen({ navigation }) {
+  const [cartItems, setCartItems] = useState(MOCK_CART_ITEMS);
+  const [deliveryOption, setDeliveryOption] = useState("pickup");
+  
+  const calculateSubtotal = () => {
+    return cartItems.reduce((total, item) => total + item.price, 0);
+  };
+  
+  const calculateTotal = () => {
+    const subtotal = calculateSubtotal();
+    const deliveryFee = deliveryOption === "delivery" ? 5 : 0;
+    return subtotal + deliveryFee;
+  };
+  
+  const removeItem = (itemId) => {
+    setCartItems(cartItems.filter(item => item.id !== itemId));
+  };
+  
+  const handleCheckout = () => {
+    navigation.navigate('Checkout', {
+      cartItems,
+      subtotal: calculateSubtotal(),
+      deliveryFee: deliveryOption === "delivery" ? 5 : 0,
+      total: calculateTotal()
+    });
+  };
+  
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.cartHeader}>
+        <Text style={styles.cartTitle}>Your Cart</Text>
+      </View>
+      
+      {cartItems.length > 0 ? (
+        <>
+          <FlatList
+            data={cartItems}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
