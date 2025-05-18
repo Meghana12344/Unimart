@@ -1,0 +1,554 @@
+/ Student Marketplace Backend
+// Using Vapor framework for Swift server-side development
+
+import Vapor
+import Fluent
+import FluentPostgresDriver
+
+// MARK: - Application Configuration
+
+struct AppConfig {
+    static let appName = "StudentMarket"
+    static let apiVersion = "v1"
+}
+
+// MARK: - Main Application Setup
+
+@main
+struct StudentMarketApp {
+    static func main() async throws {
+        var env = try Environment.detect()
+        try LoggingSystem.bootstrap(from: &env)
+        
+        let app = Application(env)
+        defer { app.shutdown() }
+        
+        // Configure database
+        try configureDatabase(app)
+        
+        // Configure middleware
+        configureMiddleware(app)
+        
+        // Configure routes
+        try configureRoutes(app)
+        
+        try app.run()
+    }
+    
+    static func configureDatabase(_ app: Application) throws {
+        // Configure PostgreSQL database
+        app.databases.use(.postgres(
+            hostname: Environment.get("DATABASE_HOST") ?? "localhost",
+            port: Environment.get("DATABASE_PORT").flatMap(Int.init(_:)) ?? 5432,
+            username: Environment.get("DATABASE_USERNAME") ?? "postgres",
+            password: Environment.get("DATABASE_PASSWORD") ?? "password",
+            database: Environment.get("DATABASE_NAME") ?? "student_market"
+        ), as: .psql)
+        
+        // Run migrations
+        try runMigrations(app)
+    }
+    
+    static func runMigrations(_ app: Application) throws {
+        // User-related migrations
+        app.migrations.add(CreateUsers())
+        app.migrations.add(CreateUserProfiles())
+        app.migrations.add(CreateSessions())
+        
+        // Item-related migrations
+        app.migrations.add(CreateCategories())
+        app.migrations.add(CreateItems())
+        app.migrations.add(CreateItemImages())
+        
+        // Transaction-related migrations
+        app.migrations.add(CreateTransactions())
+        app.migrations.add(CreateReviews())
+        
+        // Communication-related migrations
+        app.migrations.add(CreateConversations())
+        app.migrations.add(CreateMessages())
+        
+        // Notifications
+        app.migrations.add(CreateNotifications())
+        
+        // Run migrations automatically
+        try app.autoMigrate().wait()
+    }
+    
+    static func configureMiddleware(_ app: Application) {
+        // Error middleware
+        app.middleware.use(ErrorMiddleware.default(environment: app.environment))
+        
+        // CORS middleware
+        let corsConfiguration = CORSMiddleware.Configuration(
+            allowedOrigin: .all,
+            allowedMethods: [.GET, .POST, .PUT, .DELETE, .PATCH],
+            allowedHeaders: [
+                .accept, .authorization, .contentType, .origin, .xRequestedWith,
+                .userAgent, .accessControlAllowOrigin
+            ]
+        )
+        app.middleware.use(CORSMiddleware(configuration: corsConfiguration))
+        
+        // File middleware for serving static files
+        app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
+        
+        // Custom authentication middleware
+        app.middleware.use(JWTAuthMiddleware())
+    }
+    
+    static func configureRoutes(_ app: Application) throws {
+        // Group all API routes under /api/v1
+        let api = app.grouped("api", AppConfig.apiVersion)
+        
+        // Register route controllers
+        try api.register(collection: AuthController())
+        try api.register(collection: UserController())
+        try api.register(collection: ItemController())
+        try api.register(collection: CategoryController())
+        try api.register(collection: TransactionController())
+        try api.register(collection: MessageController())
+        try api.register(collection: ReviewController())
+        try api.register(collection: NotificationController())
+        try api.register(collection: SearchController())
+    }
+}
+
+// MARK: - Models
+
+// User Models
+struct User: Content, ModelAuthenticatable {
+    var id: UUID?
+    var email: String
+    var passwordHash: String
+    var isVerified: Bool
+    var createdAt: Date?
+    var updatedAt: Date?
+    
+    // ModelAuthenticatable conformance
+    static let usernameKey = \User.$email
+    static let passwordHashKey = \User.$passwordHash
+    
+    func verify(password: String) throws -> Bool {
+        try Bcrypt.verify(password, created: passwordHash)
+    }
+}
+
+extension User: Model {
+    static let schema = "users"
+    
+    struct FieldKeys {
+        static var email: FieldKey { "email" }
+        static var passwordHash: FieldKey { "password_hash" }
+        static var isVerified: FieldKey { "is_verified" }
+        static var createdAt: FieldKey { "created_at" }
+        static var updatedAt: FieldKey { "updated_at" }
+    }
+    
+    init() {}
+    
+    init(id: UUID? = nil, email: String, passwordHash: String, isVerified: Bool = false) {
+        self.id = id
+        self.email = email
+        self.passwordHash = passwordHash
+        self.isVerified = isVerified
+    }
+}
+
+struct UserProfile: Content {
+    var id: UUID?
+    var userId: User.IDValue
+    var firstName: String
+    var lastName: String
+    var institutionName: String
+    var institutionEmail: String?
+    var profileImageUrl: String?
+    var bio: String?
+    var rating: Double?
+    var createdAt: Date?
+    var updatedAt: Date?
+}
+
+extension UserProfile: Model {
+    static let schema = "user_profiles"
+    
+    struct FieldKeys {
+        static var userId: FieldKey { "user_id" }
+        static var firstName: FieldKey { "first_name" }
+        static var lastName: FieldKey { "last_name" }
+        static var institutionName: FieldKey { "institution_name" }
+        static var institutionEmail: FieldKey { "institution_email" }
+        static var profileImageUrl: FieldKey { "profile_image_url" }
+        static var bio: FieldKey { "bio" }
+        static var rating: FieldKey { "rating" }
+        static var createdAt: FieldKey { "created_at" }
+        static var updatedAt: FieldKey { "updated_at" }
+    }
+}
+
+// Item Models
+struct Item: Content {
+    var id: UUID?
+    var userId: User.IDValue
+    var title: String
+    var description: String
+    var price: Double
+    var categoryId: Category.IDValue
+    var condition: String
+    var itemType: String // "sell", "buy", "lend"
+    var status: String // "available", "pending", "sold", "lent"
+    var location: String?
+    var viewCount: Int
+    var createdAt: Date?
+    var updatedAt: Date?
+}
+
+extension Item: Model {
+    static let schema = "items"
+    
+    struct FieldKeys {
+        static var userId: FieldKey { "user_id" }
+        static var title: FieldKey { "title" }
+        static var description: FieldKey { "description" }
+        static var price: FieldKey { "price" }
+        static var categoryId: FieldKey { "category_id" }
+        static var condition: FieldKey { "condition" }
+        static var itemType: FieldKey { "item_type" }
+        static var status: FieldKey { "status" }
+        static var location: FieldKey { "location" }
+        static var viewCount: FieldKey { "view_count" }
+        static var createdAt: FieldKey { "created_at" }
+        static var updatedAt: FieldKey { "updated_at" }
+    }
+}
+
+struct ItemImage: Content {
+    var id: UUID?
+    var itemId: Item.IDValue
+    var imageUrl: String
+    var isMainImage: Bool
+    var createdAt: Date?
+}
+
+extension ItemImage: Model {
+    static let schema = "item_images"
+    
+    struct FieldKeys {
+        static var itemId: FieldKey { "item_id" }
+        static var imageUrl: FieldKey { "image_url" }
+        static var isMainImage: FieldKey { "is_main_image" }
+        static var createdAt: FieldKey { "created_at" }
+    }
+}
+
+struct Category: Content {
+    var id: UUID?
+    var name: String
+    var description: String?
+    var parentId: Category.IDValue?
+}
+
+extension Category: Model {
+    static let schema = "categories"
+    
+    struct FieldKeys {
+        static var name: FieldKey { "name" }
+        static var description: FieldKey { "description" }
+        static var parentId: FieldKey { "parent_id" }
+    }
+}
+
+// Transaction Models
+struct Transaction: Content {
+    var id: UUID?
+    var itemId: Item.IDValue
+    var sellerId: User.IDValue
+    var buyerId: User.IDValue
+    var price: Double
+    var status: String // "initiated", "pending", "completed", "cancelled"
+    var transactionType: String // "purchase", "rental"
+    var rentalStartDate: Date?
+    var rentalEndDate: Date?
+    var createdAt: Date?
+    var updatedAt: Date?
+}
+
+extension Transaction: Model {
+    static let schema = "transactions"
+    
+    struct FieldKeys {
+        static var itemId: FieldKey { "item_id" }
+        static var sellerId: FieldKey { "seller_id" }
+        static var buyerId: FieldKey { "buyer_id" }
+        static var price: FieldKey { "price" }
+        static var status: FieldKey { "status" }
+        static var transactionType: FieldKey { "transaction_type" }
+        static var rentalStartDate: FieldKey { "rental_start_date" }
+        static var rentalEndDate: FieldKey { "rental_end_date" }
+        static var createdAt: FieldKey { "created_at" }
+        static var updatedAt: FieldKey { "updated_at" }
+    }
+}
+
+struct Review: Content {
+    var id: UUID?
+    var transactionId: Transaction.IDValue
+    var reviewerId: User.IDValue
+    var revieweeId: User.IDValue
+    var itemId: Item.IDValue
+    var rating: Int
+    var comment: String?
+    var createdAt: Date?
+}
+
+extension Review: Model {
+    static let schema = "reviews"
+    
+    struct FieldKeys {
+        static var transactionId: FieldKey { "transaction_id" }
+        static var reviewerId: FieldKey { "reviewer_id" }
+        static var revieweeId: FieldKey { "reviewee_id" }
+        static var itemId: FieldKey { "item_id" }
+        static var rating: FieldKey { "rating" }
+        static var comment: FieldKey { "comment" }
+        static var createdAt: FieldKey { "created_at" }
+    }
+}
+
+// Communication Models
+struct Conversation: Content {
+    var id: UUID?
+    var itemId: Item.IDValue?
+    var user1Id: User.IDValue
+    var user2Id: User.IDValue
+    var lastMessageAt: Date?
+    var createdAt: Date?
+}
+
+extension Conversation: Model {
+    static let schema = "conversations"
+    
+    struct FieldKeys {
+        static var itemId: FieldKey { "item_id" }
+        static var user1Id: FieldKey { "user1_id" }
+        static var user2Id: FieldKey { "user2_id" }
+        static var lastMessageAt: FieldKey { "last_message_at" }
+        static var createdAt: FieldKey { "created_at" }
+    }
+}
+
+struct Message: Content {
+    var id: UUID?
+    var conversationId: Conversation.IDValue
+    var senderId: User.IDValue
+    var content: String
+    var isRead: Bool
+    var createdAt: Date?
+}
+
+extension Message: Model {
+    static let schema = "messages"
+    
+    struct FieldKeys {
+        static var conversationId: FieldKey { "conversation_id" }
+        static var senderId: FieldKey { "sender_id" }
+        static var content: FieldKey { "content" }
+        static var isRead: FieldKey { "is_read" }
+        static var createdAt: FieldKey { "created_at" }
+    }
+}
+
+// Notification Model
+struct Notification: Content {
+    var id: UUID?
+    var userId: User.IDValue
+    var title: String
+    var message: String
+    var type: String // "transaction", "message", "system"
+    var referenceId: UUID? // Can be a transaction ID, message ID, etc.
+    var isRead: Bool
+    var createdAt: Date?
+}
+
+extension Notification: Model {
+    static let schema = "notifications"
+    
+    struct FieldKeys {
+        static var userId: FieldKey { "user_id" }
+        static var title: FieldKey { "title" }
+        static var message: FieldKey { "message" }
+        static var type: FieldKey { "type" }
+        static var referenceId: FieldKey { "reference_id" }
+        static var isRead: FieldKey { "is_read" }
+        static var createdAt: FieldKey { "created_at" }
+    }
+}
+
+// MARK: - Controllers
+
+// Authentication Controller
+struct AuthController: RouteCollection {
+    func boot(routes: RoutesBuilder) throws {
+        let auth = routes.grouped("auth")
+        
+        auth.post("register", use: register)
+        auth.post("login", use: login)
+        auth.post("refresh", use: refreshToken)
+        auth.post("forgot-password", use: forgotPassword)
+        auth.post("reset-password", use: resetPassword)
+        auth.post("verify-email", use: verifyEmail)
+        
+        // Protected routes
+        let protected = auth.grouped(JWTAuthMiddleware())
+        protected.post("logout", use: logout)
+        protected.get("me", use: getCurrentUser)
+    }
+    
+    func register(req: Request) async throws -> Response {
+        try RegisterRequest.validate(content: req)
+        let registerRequest = try req.content.decode(RegisterRequest.self)
+        
+        // Check if user already exists
+        if try await User.query(on: req.db)
+            .filter(\.$email == registerRequest.email)
+            .first() != nil {
+            throw Abort(.conflict, reason: "User with this email already exists")
+        }
+        
+        // Hash the password
+        let passwordHash = try Bcrypt.hash(registerRequest.password)
+        
+        // Create new user
+        let user = User(
+            email: registerRequest.email,
+            passwordHash: passwordHash,
+            isVerified: false
+        )
+        try await user.save(on: req.db)
+        
+        // Create user profile
+        let profile = UserProfile(
+            userId: user.id!,
+            firstName: registerRequest.firstName,
+            lastName: registerRequest.lastName,
+            institutionName: registerRequest.institutionName,
+            institutionEmail: registerRequest.institutionEmail
+        )
+        try await profile.save(on: req.db)
+        
+        // Generate verification token and send email
+        let token = try await generateEmailVerificationToken(for: user, on: req.db)
+        try await sendVerificationEmail(to: user.email, token: token, req: req)
+        
+        // Return success message
+        return Response(status: .created, body: .init(string: "User registered successfully. Please verify your email."))
+    }
+    
+    func login(req: Request) async throws -> LoginResponse {
+        try LoginRequest.validate(content: req)
+        let loginRequest = try req.content.decode(LoginRequest.self)
+        
+        // Find user by email
+        guard let user = try await User.query(on: req.db)
+            .filter(\.$email == loginRequest.email)
+            .first() else {
+            throw Abort(.unauthorized, reason: "Invalid credentials")
+        }
+        
+        // Verify password
+        guard try Bcrypt.verify(loginRequest.password, created: user.passwordHash) else {
+            throw Abort(.unauthorized, reason: "Invalid credentials")
+        }
+        
+        // Generate tokens
+        let accessToken = try generateAccessToken(for: user)
+        let refreshToken = try generateRefreshToken(for: user)
+        
+        // Create session
+        let session = Session(
+            userId: user.id!,
+            token: refreshToken,
+            expiresAt: Date().addingTimeInterval(7 * 24 * 60 * 60) // 7 days
+        )
+        try await session.save(on: req.db)
+        
+        // Return tokens
+        return LoginResponse(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            user: UserResponse(id: user.id!, email: user.email)
+        )
+    }
+    
+    func refreshToken(req: Request) async throws -> TokenResponse {
+        let refreshRequest = try req.content.decode(RefreshTokenRequest.self)
+        
+        // Verify refresh token
+        let payload = try req.jwt.verify(refreshRequest.refreshToken, as: RefreshTokenPayload.self)
+        
+        // Find user
+        guard let user = try await User.find(payload.subject.value, on: req.db) else {
+            throw Abort(.unauthorized, reason: "Invalid refresh token")
+        }
+        
+        // Check if token exists in database
+        guard let session = try await Session.query(on: req.db)
+            .filter(\.$userId == user.id!)
+            .filter(\.$token == refreshRequest.refreshToken)
+            .filter(\.$expiresAt > Date())
+            .first() else {
+            throw Abort(.unauthorized, reason: "Invalid or expired refresh token")
+        }
+        
+        // Generate new tokens
+        let accessToken = try generateAccessToken(for: user)
+        let newRefreshToken = try generateRefreshToken(for: user)
+        
+        // Update session
+        session.token = newRefreshToken
+        session.expiresAt = Date().addingTimeInterval(7 * 24 * 60 * 60) // 7 days
+        try await session.save(on: req.db)
+        
+        return TokenResponse(accessToken: accessToken, refreshToken: newRefreshToken)
+    }
+    
+    func logout(req: Request) async throws -> Response {
+        guard let user = req.auth.get(User.self) else {
+            throw Abort(.unauthorized)
+        }
+        
+        // Delete all sessions for this user
+        try await Session.query(on: req.db)
+            .filter(\.$userId == user.id!)
+            .delete()
+        
+        return Response(status: .ok, body: .init(string: "Logged out successfully"))
+    }
+    
+    func getCurrentUser(req: Request) async throws -> UserDetailResponse {
+        guard let user = req.auth.get(User.self) else {
+            throw Abort(.unauthorized)
+        }
+        
+        guard let profile = try await UserProfile.query(on: req.db)
+            .filter(\.$userId == user.id!)
+            .first() else {
+            throw Abort(.notFound, reason: "User profile not found")
+        }
+        
+        return UserDetailResponse(
+            id: user.id!,
+            email: user.email,
+            firstName: profile.firstName,
+            lastName: profile.lastName,
+            institutionName: profile.institutionName,
+            institutionEmail: profile.institutionEmail,
+            profileImageUrl: profile.profileImageUrl,
+            bio: profile.bio,
+            rating: profile.rating
+        )
+    }
+    
+    // Helper methods for generating tokens and sending emails
+    private func generateAccessToken(for user: User) throws -> String {
+        let payload = AccessTokenPayload(
